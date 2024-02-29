@@ -11,8 +11,6 @@ editor_options:
 ```{r Import packages and data}
 
 # setting WD and loading required packages 
-setwd ("J:/DPhil/First year/HF prognosis/Data analysis/Analysis for TOS")
-
 rm (list = ls())
 
 # Silence dplyr messages 
@@ -42,11 +40,20 @@ pacman::p_load(
 # loadfonts(device = c("all", "pdf", "postscript", "win"), quiet = TRUE)
 
 #loading baseline data
-baseline <- read_csv("K:/kadoorie/Staff_Folders/Valirien/DAR-2022-00245-V1 - Copy/data_baseline_questionnaires.csv", col_types = cols())
-endpoint <- read_csv("K:/kadoorie/Staff_Folders/Valirien/DAR-2022-00245-V1 - Copy/endpoints.csv", col_types = cols())
+file.dir <- "K:/kadoorie/Staff_Folders/Valirien/DAR-2022-00245-V1 - Copy/"
+baseline <- read_csv(paste0(file.dir, "data_baseline_questionnaires.csv"), col_types = cols())
+endpoint <- read_csv(paste0(file.dir, "endpoints.csv"), col_types = cols())
 
+knitr::opts_chunk$set(root.dir = "/tmp")
+```
 
-knitr::opts_chunk$set(echo = TRUE)
+# Get baseline information -- 
+
+```{r}
+
+nrow(baseline) # Sample size 
+range(baseline$age_at_study_date_x100/100) # Age range of surveyed participants 
+
 ```
 
 
@@ -57,6 +64,7 @@ knitr::opts_chunk$set(echo = TRUE)
 source("J:/DPhil/First year/HF prognosis/Data analysis/My functions/prepare_lancet_barplot_data.R")
 source("J:/DPhil/First year/HF prognosis/Data analysis/My functions/add_table_header.R")
 source("J:/DPhil/First year/HF prognosis/Data analysis/My functions/trend_het_test.R")
+source("J:/DPhil/First year/HF prognosis/Data analysis/My functions/make_quartile_var_labels.R")
 ```
 
 
@@ -88,12 +96,10 @@ The different event **sources** are as follows
 
 # Endpoint headers
 
-end_new_names <- c("Asthma","PHD", "HF","RD", "MACE", 
-                   "COPD", "Acute_MI", "IHD", "CVD")
+end_new_names <- c("Asthma","PHD", "HF","RD", "MACE", "COPD", "Acute_MI", "IHD", "CVD")
 
-end_pattern   <- c("ep_CKB0063", "ep_CKB0012", "ep_CKB0080", "ep_CKB0032", 
-                   "ep_CKB0072", "ep_CKB0033", "ep_CKB0004", "ep_CKB0003", 
-                   "ep_CKB0071")
+end_pattern   <- c("ep_CKB0063", "ep_CKB0012", "ep_CKB0080", "ep_CKB0032", "ep_CKB0072", 
+                   "ep_CKB0033", "ep_CKB0004", "ep_CKB0003", "ep_CKB0071")
 
 
 for (i in 1:length(end_new_names)) {
@@ -170,6 +176,9 @@ merged_data <- merge(baseline, endpoint, by = "csid", all=TRUE)
 - 
 
 ```{r Baseline characteristics}
+
+# Drop missing values for BMI 
+merged_data <- filter(merged_data, !is.na(bmi_calc))
 
     #1. Demographic characteristics: Age, sex, area, region, marital status, education, household income, occupation
  
@@ -250,43 +259,44 @@ merged_data <- merge(baseline, endpoint, by = "csid", all=TRUE)
     #2. Lifestyle factors: Ever-regular smokers, weekly drinkers, total physical activity 
 
 merged_data %>% 
-      mutate(smoking_status = factor(case_when(smoking_category == 1 ~ "Never smoker", 
-                                               smoking_category == 2 | smoking_category == 3 ~ "Ever-smoker", 
-                                               TRUE ~ "Current")),              
+      mutate(
+         smoking_status = factor(
+           case_when(smoking_category == 1 ~ "Never smoker", 
+                     smoking_category == 2 ~ "Occasional", 
+                     smoking_category == 3 ~ "Ex-smoker", 
+                     TRUE ~ "Current")),              
              
-             ever_reg_smoker = factor(ifelse(smoking_status != "Never smoker", "Ever regular", "Never")),
-             
-             #Weekly drinkers 
-             alcohol_category = as.factor(alcohol_category),
-             alcohol_category = fct_recode(alcohol_category, "Never regular drinkers" = "1", 
-                                                             "Ex-regular drinkers"    = "2", 
-                                                             "Reduced intake"         = "3", 
-                                                             "Occasional drinkers"    = "4", 
-                                                             "Occasional drinkers"    = "5", 
-                                                             "Regular drinker"        = "6"), 
-             
-             alcohol_recode  = factor(case_when (alcohol_category == "Regular drinker"        ~ "Current",
-                                                 alcohol_category == "Ex-regular drinkers"    ~ "Ex-drinkers",
-                                                 alcohol_category == "Never regular drinkers" ~ "Never", 
-                                                 TRUE ~ "Others"
-                                                 ),
-                                      
-                                      levels = c("Current", "Ex-drinkers", "Never", "Others")), 
-             
-             current_drinkers = factor(ifelse(alcohol_category == "Regular drinker", "Yes", "No"), 
-                                       levels = c("Yes", "No")
-                                       ),
-             
-             #Total physical activity 
-             PA_met = met,  
-             
-             bmi_cat = factor(case_when(bmi_calc  < 18.5 ~ "Underweight", 
-                                         bmi_calc >= 18.5 & bmi_calc < 23 ~ "Normal", 
-                                         bmi_calc >= 23 & bmi_calc < 25 ~ "Overweight", 
-                                         bmi_calc >= 25 ~ "Obesity", 
-                                         TRUE ~ as.character(NA)), 
-                               
-                               levels = c("Underweight", "Normal", "Overweight", "Obesity")))  ->  merged_data 
+         ever_reg_smoker = factor(ifelse(smoking_category >= 3, "Ever regular", "Never")),
+         
+         #Weekly drinkers 
+         alcohol_category = as.factor(alcohol_category),
+         alcohol_category = fct_recode(alcohol_category, "Never regular drinkers" = "1", 
+                                                         "Ex-regular drinkers"    = "2", 
+                                                         "Reduced intake"         = "3", 
+                                                         "Occasional drinkers"    = "4", 
+                                                         "Occasional drinkers"    = "5", 
+                                                         "Regular drinker"        = "6"), 
+         
+         alcohol_recode  = factor(case_when (alcohol_category == "Regular drinker"        ~ "Current",
+                                             alcohol_category == "Ex-regular drinkers"    ~ "Ex-drinkers",
+                                             alcohol_category == "Never regular drinkers" ~ "Never", 
+                                             TRUE ~ "Others"),
+                                  
+                                  levels = c("Current", "Ex-drinkers", "Never", "Others")), 
+         
+         current_drinkers = factor(ifelse(alcohol_category == "Regular drinker", "Yes", "No"), 
+                                   levels = c("Yes", "No")),
+         
+         #Total physical activity 
+         PA_met = met,  
+         
+         bmi_cat = factor(case_when(bmi_calc  < 18.5 ~ "Underweight", 
+                                     bmi_calc >= 18.5 & bmi_calc < 23 ~ "Normal", 
+                                     bmi_calc >= 23 & bmi_calc < 25 ~ "Overweight", 
+                                     bmi_calc >= 25 ~ "Obesity", 
+                                     TRUE ~ as.character(NA)), 
+                           
+                           levels = c("Underweight", "Normal", "Overweight", "Obesity")))  ->  merged_data 
 
  
    #4. Self reported health and prevalent disease
@@ -382,17 +392,7 @@ paste0(comobid_vars, collapse = ", ")
 
 
 
-
-
-
-merged_data <- merged_data %>% filter(!is.na(bmi_calc)) 
-#Remove missing data for BMI. 
-
 rm("baseline", "endpoint")
-
-
-
-
 
 ```
 
@@ -402,14 +402,14 @@ require(Hmisc)
 
 ## Set appropriate variable labels before tabulations
 
-n_var <- c("age_group10", "age", "edu_bin", "h_income_bin",
-           "ever_reg_smoker", "alcohol_reg_drinkers", 
+n_var <- c("age_group10", "age", "edu_bin", "sex", "h_income_bin",
+           "ever_reg_smoker", "current_drinkers", 
            "bmi_calc", "sbp_mean", "dbp_mean", "heart_rate_mean", 
            "HTN", "chd", "stroke_tia", "copd", "emphy_bronc_asthma", "CLD", "SOB_walking", "poor_health",
            "co_hf_phd", "hf_phd_timing", "phd_hf_timing")
 
 
-l_var <- c("Age group, year, n (%)", "Age, mean (SD), year", 
+l_var <- c("Age group, year, n (%)", "Age, mean (SD), year", "Sex",
            "Level of education, n (%)", "Annual household income < 10 000 Yuan, n (%)",
            
            "Ever-regular smoker, n (%)", "Regular alcohol drinker, n (%)", 
@@ -423,9 +423,13 @@ l_var <- c("Age group, year, n (%)", "Age, mean (SD), year",
            "HF and PHD Co-occurrence, n (%)", "Timing of HF occurrence, n (%)", "Timing of PHD occurrence, n (%)")
 
 
-for (i in seq_along(n_var)) {
-  Hmisc::label(merged_data[ ,n_var[i]]) <- l_var[[i]]
-}
+
+df_table <- dplyr::select(merged_data, all_of(n_var), hf_inpatient, phd_inpatient)
+
+# 
+# for (i in seq_along(n_var)) {
+#   Hmisc::label(df_table[ ,n_var[i]]) <- l_var[[i]]
+# }
 
 
 #1. Heart failure
@@ -435,7 +439,7 @@ tab_hf <-  descrTable(hf_inpatient ~ age + sex + area + edu_bin + h_income_bin +
                       bmi_calc + sbp_mean + dbp_mean + heart_rate_mean +                                               
                       HTN + diabetes + chd + stroke_tia + copd + emphysema_bronchitis + CLD + tuberculosis +
                       asthma + emphy_bronc_asthma + SOB_walking + poor_health + 
-                      co_hf_phd + hf_phd_timing, merged_data, hide.no = "No")
+                      co_hf_phd + hf_phd_timing, df_table, hide.no = "No")
 
 
 # 2. Pulmonary heart disease
@@ -444,24 +448,24 @@ tab_phd <- descrTable(phd_inpatient ~ age + sex + area + edu_bin + h_income_bin 
                       bmi_calc + sbp_mean + dbp_mean + heart_rate_mean +                                               
                       HTN + diabetes + chd + stroke_tia + copd + emphysema_bronchitis + CLD + tuberculosis +
                       asthma + emphy_bronc_asthma + SOB_walking + poor_health + 
-                      co_hf_phd + phd_hf_timing, merged_data, hide.no = "No")
+                      co_hf_phd + phd_hf_timing, df_table, hide.no = "No")
 
 
 # 3. Overall
-all_participants <- merged_data %>%
-                          select(age, sex, area, edu_bin, h_income_bin, occupation,
-                                 
-                                 ever_reg_smoker, alcohol_reg_drinkers,
-                                 
-                                 bmi_calc, sbp_mean, dbp_mean, heart_rate_mean, 
-                                 
-                                 HTN, diabetes, chd, stroke_tia, copd, emphysema_bronchitis, CLD, tuberculosis,
-                                 asthma, emphy_bronc_asthma, SOB_walking, poor_health, 
-                                 
-                                 co_hf_phd, hf_phd_timing, phd_hf_timing)
+# all_participants <- merged_data %>%
+#                           select(age, sex, area, edu_bin, h_income_bin, occupation,
+#                                  
+#                                  ever_reg_smoker, alcohol_reg_drinkers,
+#                                  
+#                                  bmi_calc, sbp_mean, dbp_mean, heart_rate_mean, 
+#                                  
+#                                  HTN, diabetes, chd, stroke_tia, copd, emphysema_bronchitis, CLD, tuberculosis,
+#                                  asthma, emphy_bronc_asthma, SOB_walking, poor_health, 
+#                                  
+#                                  co_hf_phd, hf_phd_timing, phd_hf_timing)
 
 
-tab_overall <- descrTable(all_participants, hide.no = "No")
+tab_overall <- descrTable(df_table, hide.no = "No")
 
 
 # Extract tables into excel
@@ -473,36 +477,41 @@ export2xls(tab_overall, file = "Table_ALL.xlsx")
 
 # Obtain sex-specific n(%) for men and women
 
-all_gender <- merged_data %>% select(sex, ever_reg_smoker, alcohol_reg_drinkers, tuberculosis )
+all_gender <- merged_data %>% select(sex, ever_reg_smoker, current_drinkers)
 
-tab_gen1 <- list()
+tab_gen1 <- list() 
 tab_gen2 <- list()
 tab_gen3 <- list()
 
 
 for (i in seq_along(c("Men", "Women"))) {
   
-  tab_gen1[[i]] <- descrTable(hf_inpatient ~ ever_reg_smoker + alcohol_reg_drinkers, 
-                            selec = list(ever_reg_smoker = sex == c("Men", "Women")[[i]],
-                                         alcohol_reg_drinkers = sex == c("Men", "Women")[[i]]),
-                            merged_data, hide.no = "No")
+  tab_gen1[[i]] <-  
+    
+    descrTable(hf_inpatient ~ ever_reg_smoker + current_drinkers, 
+      selec = list(ever_reg_smoker = sex == c("Men", "Women")[[i]], 
+                   current_drinkers = sex == c("Men", "Women")[[i]]),
+      df_table, hide.no = "No")
   
-  tab_gen2[[i]] <- descrTable(phd_inpatient ~ ever_reg_smoker + alcohol_reg_drinkers, 
-                            selec = list(ever_reg_smoker = sex == c("Men", "Women")[[i]],
-                                        alcohol_reg_drinkers = sex == c("Men", "Women")[[i]]),
-                            merged_data, hide.no = "No")
+  tab_gen2[[i]] <- 
+    
+    descrTable(phd_inpatient ~ ever_reg_smoker + current_drinkers, 
+      selec = list(ever_reg_smoker = sex == c("Men", "Women")[[i]],
+                   current_drinkers = sex == c("Men", "Women")[[i]]), df_table, hide.no = "No")
   
-  tab_gen3[[i]] <- descrTable(all_gender,
+  tab_gen3[[i]] <- 
+    
+    descrTable(all_gender,
+      selec = list(
+               ever_reg_smoker = sex == c("Men", "Women")[[i]],
+               current_drinkers = sex == c("Men", "Women")[[i]]), 
+      hide.no = "No")
 
-                            selec = list(ever_reg_smoker = sex == c("Men", "Women")[[i]],
-                                         alcohol_reg_drinkers = sex == c("Men", "Women")[[i]]), hide.no = "No")
-}
+  }
  
 
 tab_gen1 <- descrTable(hf_inpatient ~ tuberculosis, merged_data, hide.no = "No")
-
 tab_gen2 <- descrTable(phd_inpatient ~ tuberculosis,merged_data, hide.no = "No")
-  
 tab_gen3 <- descrTable(all_gender, hide.no = "No")
 
 rm("tab_hf", "tab_phd", "all_participants", "tab_overall", "all_gender", "tab_gen1", "tab_gen2", "tab_gen3")
@@ -556,6 +565,7 @@ merged_data %>%
 
 
 detach("package:Hmisc", unload = TRUE)
+rm(df_table)
 
 ```
 
@@ -577,7 +587,6 @@ filt_variables <- c(
   "Acute_MI_combined_datedeveloped", 
   "IHD_combined_ep", 
   "IHD_combined_datedeveloped", 
-  
   "dob_anon", 
   "study_date", 
   
@@ -590,6 +599,8 @@ filt_variables <- c(
   "edu",
   "highest_education",
   "bmi_cat", 
+  "bmi_calc", 
+  "sbp_mean",
   "HTN", 
   "diabetes", 
   "copd", 
@@ -668,14 +679,10 @@ Age-specific IR by age-at-risk and sex
 
 ```{r Age-specific incidence}
 
-
 data_expanded <- map(.x = data_expanded, ~dplyr::mutate(.x, all = 1))
 
 # Overall standardised incidence rate (by age, sex, and area)
-
-std_ir_overall <- 
-  
-  map( 
+std_ir_overall <- map( 
     .x = data_expanded,
     ~incidence_rates (
       data     = .x, 
@@ -945,26 +952,31 @@ ckbplotr::save_figure(
 
 ```{r Standardised incidence rate}
 
-
-
 # Recode number of comorbidties 
-data_expanded <- map(.x = data_expanded, 
-                     ~mutate(.x, 
-                             n_combid_cat = factor(ifelse(n_comobid >= 2, "2+", n_comobid)), 
-                             ageatrisk65  = ifelse(age_lexis >= 65, "65+", "Below 65")))
+data_expanded <- map(
+  .x=data_expanded,
+  ~mutate(
+    .x, 
+    n_combid_cat=factor(ifelse(n_comobid >= 2, "2+", n_comobid)),
+    ageatrisk65=ifelse(age_lexis >= 65, "65+", "Below 65"), 
+    ) 
+  ) %>% 
+  map(~make_quartile_var_labels( 
+      dataset=.x, 
+      numeric_vars=c("bmi_calc", "sbp_mean"), 
+      n_quartile=4)
+  )   
  
 # Automating the process 
 strata_var    <- c("ageatrisk65", "sex", "area")
-grouping_var  <- c("edu", "HTN", "diabetes", "copd", "chd", "n_combid_cat")
+grouping_var  <- c("edu", "sbp_mean_Q4", "bmi_calc_Q4", "diabetes", "copd", "chd")
 group_labels  <- list(
-                  "Trend" = "Level of education",
-                  "Heterogeneity" = "Hypertension",  
-                  "Heterogeneity" = "Diabetes", 
-                  "Heterogeneity" = "COPD", 
-                  "Heterogeneity" = "Coronary heart disease", 
-                  "Trend" = "Number of comorbidities")
-
-
+  "Trend" = "Level of education",
+  "Trend" = "SBP, mmHg",  
+  "Trend" = "BMI, kg/m\u00B2",
+  "Heterogeneity" = "Diabetes", 
+  "Heterogeneity" = "COPD", 
+  "Heterogeneity" = "Coronary heart disease")
 
 # Subgroup analysis ####
 
@@ -973,37 +985,32 @@ trend_het_test <- list()
 
 for (df in seq_along(data_expanded)) {
   
-  subgroup2_temp[[df]] <- 
-    
-    map2(
-      .x = grouping_var,
-      .y = seq_along(grouping_var),  
-                              
-      ~incidence_rates (data     = data_expanded[[df]], 
-                        group    = .x, 
-                        strata   = strata_var,
-                        per_pyar = 100000) %>% 
-        
+  subgroup2_temp[[df]] <- map2(
+      .x=grouping_var,
+      .y=seq_along(grouping_var),  
+      ~incidence_rates (
+        data=data_expanded[[df]],
+        group=.x, 
+        strata=strata_var,
+        per_pyar=100000) %>% 
       pluck (., 2) %>% 
-      rename("Strata_level" = 1) %>%
+      rename("Strata_level"=1) %>%
       mutate(
-        test_type = names(group_labels[.y]), 
-        Strata         = group_labels[[.y]],
-        crude_pyar1000 = round(crude_pyar/1000),
-        lci            = std_ir - 1.96*std_ir_se,
-        uci            = std_ir + 1.96*std_ir_se
+        test_type=names(group_labels[.y]), 
+        Strata=group_labels[[.y]],
+        crude_pyar1000=round(crude_pyar/1000),
+        lci=std_ir-1.96*std_ir_se,
+        uci=std_ir+1.96*std_ir_se
         ) %>% 
-      relocate(Strata, .before = 1)
+      relocate(Strata, .before=1)
     )
    
-  
   # Perform heterogeneity test -- 
-  trend_het_test[[df]] <- 
-    
-    map(
+  trend_het_test[[df]] <- map(
       .x = subgroup2_temp[[df]], 
-      ~if(unique(.x$test_type) == "Trend"){trend(.x$std_ir, .x$std_ir_se) 
-      }else{heterogeneity(.x$std_ir, .x$std_ir_se)}
+      ~if(unique(.x$test_type) == "Trend"){
+        trend(.x$std_ir, .x$std_ir_se) 
+        }else{heterogeneity(.x$std_ir, .x$std_ir_se)}
     ) 
   
 }
@@ -1011,33 +1018,22 @@ for (df in seq_along(data_expanded)) {
 
 subgroup2_list <- list()
 
-
 for (df in seq_along(subgroup2_temp)) {
-
   # Join heterogeneity test to subgroup data --
-  subgroup2_list[[df]] <-
-    
-    map2_dfr(
+  subgroup2_list[[df]] <- map2_dfr(
       .x = subgroup2_temp[[df]], 
       .y = trend_het_test[[df]], 
-      
-      ~.x %>% 
-        mutate(
-          df   = c(rep(NA, nrow(.)-1), .y$df), 
-          chi2 = c(rep(NA, nrow(.)-1), round(.y$`test statistic`, 1)), 
-          p    = ifelse(.y$p < 0.0001, "<0.0001", as.character(round(.y$p, 4))),
-          p    = ifelse(is.na(df), NA, p)
+      ~mutate(
+        .x,
+        df=c(rep(NA, nrow(.)-1), .y$df), 
+        chi2=c(rep(NA, nrow(.)-1), round(.y$`test statistic`, 1)), 
+        p=ifelse(.y$p < 0.0001, "<0.0001", as.character(round(.y$p, 4))),
+        p=ifelse(is.na(df), NA, p)
         )
     ) 
-  
        
-}    
+  }    
  
-
-
-
-
-
 
 ```
 
@@ -1047,22 +1043,14 @@ for (df in seq_along(subgroup2_temp)) {
 ```{r Plotting standardised incidence rate}
 
 ## Format dataframe subgroup analysis for plotting in Jasper 
-
 group_headers <- map(.x = subgroup2_list, ~unique(.x$Strata)) %>% pluck(., 1) 
-
 i_order <- 1:length(group_headers)
 
-
 # Reoder dataframes for forest plots 
-
 ## Edit df headings 
 
-
-subgroup_ir <-  
-  
-  map(
-    .x = subgroup2_list,   
-                    
+subgroup_ir <-  map(
+    .x = subgroup2_list,               
     ~select(.x, 1:4, std_ir, test_type, lci:p) %>% 
      transmute(
         Strata     = factor(Strata, levels = group_headers), 
@@ -1072,22 +1060,18 @@ subgroup_ir <-
         std_ir     = std_ir,
         LCI        = lci, 
         UCI        = uci, 
-        Het        = ifelse(!is.na(df) & test_type == "Heterogeneity", paste(df, chi2, p, sep = ","), NA), 
-        Trend      = ifelse(!is.na(df) & test_type == "Trend", paste(df, chi2, p, sep = ","), NA),     
+        Het        = ifelse(!is.na(df) & test_type=="Heterogeneity", paste(df, chi2, p, sep = ","), NA), 
+        Trend      = ifelse(!is.na(df) & test_type=="Trend", paste(df, chi2, p, sep = ","), NA),     
         IsDiamond  = 0, 
         FillColour = 1) %>% 
-      
       dplyr::group_by(Strata) %>%
-             group_split () %>% 
-             map2(.y = group_headers, ~add_row(.x, .before  = 1, Heading  = c(.y)))
+             group_split() %>% 
+             map2(.y=group_headers, ~add_row(.x, .before=1, Heading=c(.y)))
     
     )  
- 
    
-  ## Format and add heading for overall estimates
-
-overall_ir <- 
-  map(
+## Format and add heading for overall estimates
+overall_ir <- map(
    .x = std_ir_overall, 
    ~transmute(
        .x, 
@@ -1101,30 +1085,27 @@ overall_ir <-
        Trend      = NA,
        IsDiamond  = 1,  
        FillColour = 0) %>%  
-     
     add_row(.before =  1)  
-                     # dplyr::mutate(across(.cols = everything(), ~ ifelse(is.na(.x), "", .x)))
     ) 
   
 # Bind both datasets --
-
-subgroup_ir <- 
-  map(.x = subgroup_ir, ~bind_rows(.x) %>% select(-Strata) %>% add_row(.before = 1)) %>% 
+subgroup_ir <- map(
+  .x = subgroup_ir, 
+  ~bind_rows(.x) %>% 
+    select(-Strata) %>% 
+    add_row(.before = 1)) %>% 
   map2(.y = overall_ir, ~bind_rows(.x, .y))
  
 
-
-# Make forest plot 
-# lab_plot  <- "Figure S2: Standardised hospitalisation rates for heart failure and pulmonary heart disease\nby subgroups\n"
+# Make forest plot----
 
 ## Try converting to dataframes 
 ## Was getting the following error: "Warning: Unknown or uninitialised column: `ColHeadings`."
 ## Converting the tibble into a dataframe fixed the error 
 
-subgroup_ir <- 
-  map2(
-    .x = subgroup_ir, 
-    .y = seq_along(subgroup_ir),
+subgroup_ir <- map2(
+    .x=subgroup_ir, 
+    .y=seq_along(subgroup_ir),
     ~dplyr::rename(
       .x,
       !!paste0("Het", .y) := Het,  
@@ -1135,21 +1116,20 @@ subgroup_ir <-
       as.data.frame(.)
   ) 
  
-forest_dat <- map2(.x = subgroup_ir, 
-                   .y = seq_along(subgroup_ir),
-                  
-                  ~ FormatForest(rawdata     = .x, 
-                                 forest.n    = .y,  
-                                 EstimateCol = "std_ir",
-                                 LCICol      = "LCI", 
-                                 UCICol      = "UCI", 
-                                 logData     = FALSE, 
-                                 getBlanks   = TRUE,  
-                                 getHets     = TRUE,  
-                                 getTrends   = TRUE))
-                  
-names(forest_dat) <- c("hf", "phd") 
-
+forest_dat <- map2(
+  .x=subgroup_ir, 
+  .y=seq_along(subgroup_ir),
+  ~ FormatForest(
+     rawdata=.x, 
+     forest.n    = .y,  
+     EstimateCol = "std_ir",
+     LCICol      = "LCI", 
+     UCICol      = "UCI", 
+     logData     = FALSE, 
+     getBlanks   = TRUE,  
+     getHets     = TRUE,  
+     getTrends   = TRUE)) %>% 
+  setNames(c("hf", "phd") )
 
 blank.rows   <- forest_dat$hf$blank.rows 
  
@@ -1161,10 +1141,7 @@ other.cols     <- c("ne", "py1000")
 print.headings <- parseColHeadings(subgroup_ir[[1]]$ColHeadings, rd=subgroup_ir[[1]])
 
 
-
-# set up the Jasper page
 type <- "JPG"
-
 SetPage(orient="PORTRAIT", 
         perpage=1, 
         type=type, 
@@ -1178,15 +1155,7 @@ SetPage(orient="PORTRAIT",
         suppress.date   =TRUE, 
         titlespace      =0.01,
         footerspace     = 0.01,
-        # footer.cex      = 0., 
         footer    = "")
-
-# Hospitalisation rates were directly standardised by age-at-risk, sex, and area (urban/urban). Comorbidity was defined as the presence of rheumatic heart disease, coronary heart disease, 
-# stroke, transient ischemic attack, hypertension, diabetes, chronic obstructive pulmonary disease (COPD), tuberculosis, emphysema,  bronchitis, asthma, cirrhosis, hepatitis B, cancer, 
-# rheumatoid arthritis, or kidney disease 
-# py = person-years
-#         \n \n
-
 
 # Set page margins: format is c(bottom, left, top, right)
 par(mar=c(4.14537797266251, 2, 8.14537797266251, 2))
@@ -1272,7 +1241,6 @@ text(x=xaxmin2 + (xaxmax2 - xaxmin2 + (spacing) )/2,
      col="black")
 
 segments(x0 = 0,  y0 = 98, x1 = 96.5, y1=98, lwd = 1)
-
 
 # left hand column of labels
 text(x=0, y=100, labels="Strata",
@@ -1690,133 +1658,115 @@ barplot_region_ir <-
 
 #1. Defining follow-up time for HF 
 
-merged_data <- merged_data %>% 
-  
-                  mutate(dob = ymd(dob_anon), 
-                         
-                         # Date of HF diagnosis 
-                         date_hf_diag = ymd(HF_combined_datedeveloped),                                           
-                         
-                         #Age at diagnosis of HF 
-                         age_hf = interval(dob, date_hf_diag) / dyears(1),
-                         
-                         # Date of PHD diagnosis
-                         date_phd_diag = ymd(PHD_combined_datedeveloped), 
-                         
-                         #Age at diagnosis of PHD 
-                         age_phd = interval(dob, date_phd_diag)/dyears(1), 
-                         
-                         #Age at censoring 
-                         age_censor = interval(dob, censoring_date)/ddays(1),
-                          
-                         #Education (three groups)
-                         edu3 = factor(ifelse(highest_education == 0, "None", 
-                                       ifelse(highest_education == 1, "Primary", "Secondary or higher"))))
-
+merged_data <- mutate(
+  merged_data,
+  dob=ymd(dob_anon),
+  # Date of HF diagnosis 
+  date_hf_diag=ymd(HF_combined_datedeveloped),   
+  #Age at diagnosis of HF 
+  age_hf=interval(dob, date_hf_diag) / dyears(1),
+  # Date of PHD diagnosis
+  date_phd_diag=ymd(PHD_combined_datedeveloped), 
+  #Age at diagnosis of PHD 
+  age_phd=interval(dob, date_phd_diag)/dyears(1),
+  #Age at censoring 
+  age_censor=interval(dob, censoring_date)/ddays(1),
+  #Education (three groups)
+  edu3=factor(case_when(
+    highest_education==0~"None", 
+    highest_education==1~"Primary", 
+    TRUE~"Secondary or higher"))
+  )
 
 #2. Create separate data sets for inpatient HF and PHD 
+data_hf <- 
+  merged_data %>% 
+  filter(hf_inpatient==1) %>%
+  mutate(
+     futime_day=interval(date_hf_diag, censoring_date)/ddays(1),
+     futime_yr=interval(date_hf_diag, censoring_date)/dyears(1), 
+     futime_age=(age_censor-age_hf)/365,
+     age_diag_10=cut(age_hf, 
+                     breaks=c(35, 50, 60, 70, 80, 100),
+                     labels=c("30-49", "50-59", "60-69", "70-79", "80+")),
+     age_diag65=factor(case_when(age_hf>=65~"65 or over", TRUE~"Below 65")),
+     
+     year_diag=as.integer(substr(date_hf_diag, 1, 4)),
+     year_diag_cat=case_when(
+       year_diag<=2010~"2010 or earlier", 
+       year_diag>2010 & year_diag<=2012~"2011-2012", 
+       year_diag>2012 & year_diag<=2014~"2013-2014", 
+       year_diag>2014 & year_diag<=2016~"2015-2016", 
+       year_diag>2016~"2017+", 
+       TRUE~NA_character_), 
+     n_combid_cat=factor(ifelse(n_comobid>=2, "2+", n_comobid)),
+     outcome="hf"  # Indicator of dataset
+     )  
  
-data_hf <- merged_data %>% 
-            filter(hf_inpatient == 1) %>%
-  
-            mutate(futime_day    = interval(date_hf_diag, censoring_date)/ddays(1),
-                   futime_yr     = interval(date_hf_diag, censoring_date)/dyears(1), 
-                   futime_age    = (age_censor - age_hf)/365,
-                   
-                   # fatal_event   = ifelse(HF_du_ep == 1 | HF_da_ep == 1, 1, 0),
-                   
-                   age_diag_10   = cut(age_hf, breaks = c(35, 50, 60, 70, 80, 100),  
-                                               labels = c("30-49", "50-59", "60-69", "70-79", "80+")),
-                   
-                   age_diag65    = factor(ifelse(age_hf >= 65, "65 or over", "Below 65")),
-                   
-                   year_diag     = as.integer(substr(date_hf_diag, 1, 4)),
-                   year_diag_cat = case_when(year_diag <= 2010 ~ "2010 or earlier", 
-                                             year_diag > 2010 & year_diag <= 2012 ~ "2011-2012", 
-                                             year_diag > 2012 & year_diag <= 2014 ~ "2013-2014", 
-                                             year_diag > 2014 & year_diag <= 2016 ~ "2015-2016", 
-                                             year_diag > 2016 ~ "2017+", 
-                                             TRUE ~ NA_character_), 
-                   n_combid_cat = factor(ifelse(n_comobid >= 2, "2+", n_comobid)),
-                   outcome = "hf"  # Indicator of dataset
-                   ) 
-
-# Mean age at diagnosis 
+# Mean age at diagnosis  
 mean(merged_data$age_hf); sd(merged_data$age_hf)
-
-data_hf %>% dplyr::group_by(sex) %>% 
-                   summarise (mean_age = mean(age_hf), sd_age = sd(age_hf))
-
+data_hf %>% 
+  reframe(mean_age=mean(age_hf), sd_age=sd(age_hf), .by="sex")
               
-data_phd <- merged_data %>% 
-              filter(phd_inpatient == 1) %>% 
-  
-              mutate(futime_day    = interval(date_phd_diag, censoring_date)/ddays(1),
-                     futime_yr     = interval(date_phd_diag, censoring_date)/dyears(1),
-                     futime_age    = (age_censor - age_phd)/365,
-                     
-                     # fatal_event   = ifelse(PHD_du_ep == 1 | PHD_da_ep == 1, 1, 0),
-                     
-                     age_diag_10   = cut(age_phd,  
-                                         breaks = c(35, 50, 60, 70, 80, 100),
-                                         labels = c("30-49", "50-59", "60-69", "70-79", "80+")),
-                     
-                     age_diag65    = factor(ifelse(age_phd >= 65, "65 or over", "Below 65")),
-                     
-                     year_diag     = as.integer(substr(date_phd_diag, 1, 4)),
-                     
-                     year_diag_cat = case_when(year_diag <= 2010 ~ "2010 or earlier", 
-                                               year_diag > 2010 & year_diag <= 2012 ~ "2011-2012", 
-                                               year_diag > 2012 & year_diag <= 2014 ~ "2013-2014", 
-                                               year_diag > 2014 & year_diag <= 2016 ~ "2015-2016", 
-                                               year_diag > 2016 ~ "2017+", 
-                                               TRUE ~ NA_character_), 
-                     
-                     n_combid_cat = factor(ifelse(n_comobid >= 2, "2+", n_comobid)),
-                     
-                     outcome = "phd")
+data_phd <- 
+  merged_data %>%
+  filter(phd_inpatient==1) %>%
+  mutate(
+     futime_day=interval(date_phd_diag, censoring_date)/ddays(1),
+     futime_yr=interval(date_phd_diag, censoring_date)/dyears(1),
+     futime_age=(age_censor-age_phd)/365,
+     age_diag_10=cut(age_phd,  
+                     breaks=c(35, 50, 60, 70, 80, 100),
+                     labels=c("30-49", "50-59", "60-69", "70-79", "80+")),
+     age_diag65=factor(case_when(age_phd>=65~"65 or over", TRUE~"Below 65")),
+     year_diag=as.integer(substr(date_phd_diag, 1, 4)),
+     year_diag_cat=case_when(
+       year_diag<=2010~"2010 or earlier", 
+       year_diag>2010 & year_diag<=2012~"2011-2012", 
+       year_diag>2012 & year_diag<=2014~"2013-2014", 
+       year_diag>2014 & year_diag<=2016~"2015-2016", 
+       year_diag>2016~"2017+", 
+       TRUE~NA_character_), 
+     n_combid_cat=factor(ifelse(n_comobid>=2, "2+", n_comobid)),
+     outcome="phd")
 
 mean(merged_data$age_phd); sd(merged_data$age_phd)
-
-data_phd %>% dplyr::group_by(sex) %>% summarise (mean_age = mean(age_phd), sd_age = sd(age_phd))
-
-
+data_phd %>% 
+  reframe(mean_age=mean(age_phd), sd_age=sd(age_phd), .by="sex")
 
 
 # Define outcome for 28-day CFR--
+data_hf %>% 
+  mutate(death_28=case_when(censoring_reason=="Dead" & futime_day<=28~1, TRUE~0)) -> data_hf        
 
-data_hf %>% mutate(death_28 = ifelse(censoring_reason =="Dead" & futime_day <= 28,  1, 0)) -> data_hf        
-data_phd %>% mutate(death_28 = ifelse(censoring_reason == "Dead" & futime_day <= 28, 1, 0)) -> data_phd      
+data_phd %>% 
+  mutate(death_28=case_when(censoring_reason=="Dead" & futime_day<=28~1, TRUE~0)) -> data_phd      
 
 # Define COPD (prevalent + incident COPD) and IHD (coronary or ischemic HD + MI)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 data_phd <- 
   data_phd %>%
   mutate(
-    
-     incident_copd_PHD = ifelse(COPD_combined_ep == 1 & COPD_combined_datedeveloped <= PHD_combined_datedeveloped, 1, 0),
-     develop_copd      = factor(ifelse(copd == "Yes" | incident_copd_PHD == 1, "Yes", "No"), levels = c("Yes", "No")),
-    
-     incident_MI_PHD   = ifelse(Acute_MI_combined_ep == 1 & Acute_MI_combined_datedeveloped <= PHD_combined_datedeveloped, 1, 0),
-     incident_IHD_PHD  = ifelse(IHD_combined_ep == 1 & IHD_combined_datedeveloped <= PHD_combined_datedeveloped, 1, 0),
-     
-     develop_IHD  = factor(ifelse(chd == "Yes" | incident_MI_PHD == 1 | incident_IHD_PHD == 1, "Yes", "No"), 
-                                levels = c("Yes", "No")),
-    
-     age_diag_merge    = fct_recode(age_diag_10, 
-                                    "30-59" = "30-49", 
-                                    "30-59" = "50-59", 
-                                    "60-69" = "60-69", 
-                                    "70-79" = "70-79", 
-                                    "80+"   = "80+"), 
-     
-     all_death         = ifelse(censoring_reason == "Dead", 1, 0)
+     incident_copd_PHD=case_when(COPD_combined_ep==1 & COPD_combined_datedeveloped<=PHD_combined_datedeveloped~1, TRUE~0),
+     develop_copd=factor(case_when(copd=="Yes" | incident_copd_PHD==1~"Yes", TRUE~"No"), levels = c("Yes", "No")),
+     incident_MI_PHD=case_when(Acute_MI_combined_ep==1 & Acute_MI_combined_datedeveloped <= PHD_combined_datedeveloped~1, TRUE~0),
+     incident_IHD_PHD=case_when(IHD_combined_ep==1 & IHD_combined_datedeveloped<=PHD_combined_datedeveloped~1, TRUE~0),
+     develop_IHD=factor(case_when(
+       chd=="Yes" | incident_MI_PHD==1 | incident_IHD_PHD==1~"Yes", TRUE~"No"), 
+       levels = c("Yes", "No")),
+     age_diag_merge=fct_recode(
+        age_diag_10, 
+        "30-59"="30-49", 
+        "30-59"="50-59", 
+        "60-69"="60-69", 
+        "70-79"="70-79", 
+        "80+"="80+"), 
+     all_death=case_when(censoring_reason=="Dead"~1, TRUE~0)
      
      )
 
-
 data_hf <- 
-  data_hf %>%
+  data_hf %>% 
   mutate(
      incident_copd_HF = ifelse(COPD_combined_ep == 1 & COPD_combined_datedeveloped <= HF_combined_datedeveloped, 1, 0), 
      develop_copd     = factor(ifelse(copd == "Yes" | incident_copd_HF == 1, "Yes", "No"), levels = c("Yes", "No")),
@@ -1987,14 +1937,11 @@ area_sex_sim <-
 
 
 # Bind sex-area-specific datasets --
-df_age_sim <- 
-  
-  map2(
+df_age_sim <- map2(
     .x = df_age_sim, 
     .y = area_sex_sim, 
     ~left_join(.x %>% select(-c(2:7)), .y, by = "area_group") %>% 
       mutate(area_group = factor(area_group, levels = c("Rural:", "Urban:"))))
-
 
 # Get standardised cfr for men and women -- 
 
@@ -2136,24 +2083,10 @@ plot_list <-
       scale_y_continuous(expand =  c(0.05, 0), 
                          breaks =  seq(0, 100, 20), 
                          labels =  seq(0, 100, 20)) + 
-       
-      
-     # Adding labels for SIR
-      # geom_text(x      = 50, 
-      #           y      = 90,
-      #           size   = 4,  
-      #           color  = "black", 
-      #           hjust  = 0,
-      #           lineheight = 1,
-      #           label  = paste0(
-      #                      paste0("Overall, ", unique(area_sex_sim[[.y]]$sex), "\n"), 
-      #                      paste0(area_sex_sim[[.y]]$levels, collapse = "\n")
-      #                      )
-      #           ) +
     
       # Figures for SIR
       geom_text(x      = rep(c(63, 50), 2)[.y],
-                y      = 90.5,
+                y      = 90.5, 
                 label  = paste0(# Necessary to capture all prev_ci labels --
                            group_split(group_by(.x, area_group)) %>% 
                             map_chr(
@@ -2186,7 +2119,7 @@ plot_list <-
 
   
  ) 
- 
+  
 
 ## Export plot 
 plot <- ggarrange (plotlist = plot_list, 
